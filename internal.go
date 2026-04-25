@@ -17,3 +17,14 @@ func (r *Runner) startErrBufferSize() int {
 	}
 	return 1
 }
+
+func (r *Runner) totalStopTargets() int {
+	total := 0
+	for _, rw := range r.workers {
+		total += len(rw.stoppers)
+	}
+	if total > 0 {
+		return total
+	}
+	return 1
+}

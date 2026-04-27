@@ -315,6 +315,113 @@ func TestInitWithConfigUsesThreadFactory(t *testing.T) {
 	}
 }
 
+func TestAppendAddsWorkersToRunner(t *testing.T) {
+	var starts atomic.Int32
+	var stops atomic.Int32
+
+	first := &testWorker{
+		name: "first",
+		startFn: func(ctx context.Context) error {
+			starts.Add(1)
+			<-ctx.Done()
+			return nil
+		},
+		stopFn: func(context.Context) error {
+			stops.Add(1)
+			return nil
+		},
+	}
+	second := &testWorker{
+		name: "second",
+		startFn: func(ctx context.Context) error {
+			starts.Add(1)
+			<-ctx.Done()
+			return nil
+		},
+		stopFn: func(context.Context) error {
+			stops.Add(1)
+			return nil
+		},
+	}
+
+	r := Init(first).Append(second)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Run(ctx)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected nil error on context cancel, got: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run did not return after cancel")
+	}
+
+	if starts.Load() != 2 {
+		t.Fatalf("expected 2 starts, got %d", starts.Load())
+	}
+	if stops.Load() != 2 {
+		t.Fatalf("expected 2 stops, got %d", stops.Load())
+	}
+}
+
+func TestAppendWithConfigAddsThreadedWorkers(t *testing.T) {
+	var starts atomic.Int32
+	var stops atomic.Int32
+
+	r := Init().AppendWithConfig(
+		WorkerConfig{
+			Threads: 3,
+			ThreadFactory: func(thread int) Worker {
+				return &testWorker{
+					name: "threaded-appended",
+					startFn: func(ctx context.Context) error {
+						starts.Add(1)
+						<-ctx.Done()
+						return nil
+					},
+					stopFn: func(context.Context) error {
+						stops.Add(1)
+						return nil
+					},
+				}
+			},
+		},
+	)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Run(ctx)
+	}()
+
+	time.Sleep(30 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("expected nil error on context cancel, got: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("run did not return after cancel")
+	}
+
+	if starts.Load() != 3 {
+		t.Fatalf("expected 3 starts, got %d", starts.Load())
+	}
+	if stops.Load() != 3 {
+		t.Fatalf("expected 3 stops, got %d", stops.Load())
+	}
+}
+
 func TestRunContextReturnsReason(t *testing.T) {
 	w := &testWorker{
 		startFn: func(context.Context) error {

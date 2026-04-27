@@ -35,6 +35,17 @@ s := starter.Init(worker1, worker2, worker3)
 err := s.Run(ctx)
 ```
 
+Если состав воркеров собирается по этапам, можно делать append:
+
+```go
+s := starter.Init(httpWorker).
+	Append(metricsWorker).
+	AppendWithConfig(
+		starter.WorkerConfig{Worker: queueWorker, Threads: 4},
+	)
+err := s.Run(ctx)
+```
+
 Если нужно запускать один и тот же воркер в несколько потоков:
 
 ```go
@@ -346,6 +357,8 @@ s := starter.Init(backgroundWorker1, backgroundWorker2).Configure(
 
 - `Init(workers ...Worker) *Runner` - создает раннер из списка воркеров.
 - `InitWithConfig(configs ...WorkerConfig) *Runner` - создает раннер из конфигов вида `{Worker, Threads}`.
+- `(*Runner).Append(workers ...Worker) *Runner` - добавляет воркеры в уже созданный раннер.
+- `(*Runner).AppendWithConfig(configs ...WorkerConfig) *Runner` - добавляет конфиги воркеров в уже созданный раннер.
 - `(*Runner).Run(ctx context.Context) error` - запускает воркеры и блокируется до завершения.
 - `(*Runner).RunContext(ctx context.Context) RunResult` - запускает воркеры и возвращает структурированный результат.
 - `(*Runner).Configure(opts ...RunnerOption) *Runner` - включает хуки и политику ошибок.
